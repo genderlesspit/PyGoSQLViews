@@ -9,7 +9,7 @@ from async_property import AwaitLoader
 from loguru import logger as log
 from propcache import cached_property
 
-from toomanyplugins import TypeConverter, auto_stub
+from toomanyplugins import TypeConverter, auto_stub, plugin
 from toomanyplugins.toomanyobjects import combine
 from toomanyproxies.factory import Factory, Default
 from toomanyproxies.util import get_runtime_value, find_origin
@@ -65,8 +65,12 @@ class Proxy:
 
         self._factory = DefaultFactory
 
+        #time to infect the host...
         asyncio.run(TypeConverter.absorb_attr(Proxy, Proxies))
         asyncio.run(TypeConverter.absorb_attr(self._proxyer, self))
+        self._proxyer.__getattr__ = self.__getattr__
+
+        log.success(f"{self}: {proxyer} now has the ability to proxy {proxied} based on {proxyer._factory}!")
 
     def __getattr__(self, item: Any):
         if self.verbose: log.debug(f"{self}: Attempting to retrieve {item}")
