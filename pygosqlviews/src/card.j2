@@ -1,0 +1,29 @@
+{#
+  Meta-template that generates simple clickable HTML card templates
+
+  Expected context variables:
+  - table_name: string - Name of the SQL table
+  - detail_route: string - Route pattern for detail page (e.g., "/users/{id}")
+#}
+
+{# Generated template for {{ table_name }} table cards #}
+{# Usage: Pass title, subtitle, image, and id variables to this template #}
+
+<div class="card"
+     hx-get="{{ detail_route.replace('{id}', '') }}{% raw %}{{ id }}{% endraw %}"
+     hx-push-url="true"
+     style="cursor: pointer;">
+
+  {% raw %}{% if image %}{% endraw %}
+  <div class="card-image-container">
+    <img class="card-image" src="{% raw %}{{ image }}{% endraw %}" alt="{% raw %}{{ title }}{% endraw %}">
+  </div>
+  {% raw %}{% endif %}{% endraw %}
+
+  <div class="card-content">
+    <h3 class="card-title">{% raw %}{{ title }}{% endraw %}</h3>
+    {% raw %}{% if subtitle %}{% endraw %}
+    <p class="card-subtitle">{% raw %}{{ subtitle }}{% endraw %}</p>
+    {% raw %}{% endif %}{% endraw %}
+  </div>
+</div>

@@ -1,0 +1,33 @@
+{#
+  Meta-template that generates detail page templates
+
+  Expected context variables:
+  - table_name: string - Name of the SQL table
+  - detail_config: dict with optional keys:
+#}
+{%- set config = detail_config or {} -%}
+{%- set back_url = config.back_url or ('/' + table_name) -%}
+
+{# Generated detail template for {{ table_name }} table #}
+{# Usage: Pass a data dict with all the key-value pairs to display #}
+
+<div class="detail-page">
+  <div class="detail-header">
+    <h1 class="detail-title">{{ table_name | title | replace('_', ' ') }} Details</h1>
+  </div>
+
+  <div class="detail-content">
+    {% raw %}{% for key, value in data.items() %}{% endraw %}
+    <div class="detail-field">
+      <label class="field-label">{% raw %}{{ key | replace('_', ' ') | title }}{% endraw %}</label>
+      <div class="field-value">
+        {% raw %}{% if value is not none %}{% endraw %}
+        {% raw %}{{ value }}{% endraw %}
+        {% raw %}{% else %}{% endraw %}
+        <em class="null-value">Not provided</em>
+        {% raw %}{% endif %}{% endraw %}
+      </div>
+    </div>
+    {% raw %}{% endfor %}{% endraw %}
+  </div>
+</div>

@@ -1,0 +1,61 @@
+import inspect
+from pathlib import Path
+from types import FrameType, SimpleNamespace
+from typing import Any, Type, Callable, List
+
+from async_property import AwaitLoader
+from loguru import logger as log
+
+from toomanyplugins import combine
+from toomanyproxies.factory import Factory
+from toomanyproxies.util import get_runtime_value, find_origin
+
+class Proxying(type):
+    _proxied_class: Type
+    _cached_proxies: dict[str, Callable]
+    _factory: Factory = None
+    _whitelist: List[str] = ["verbose", "log"]
+    _whitelisted_prefixes: List[str] = ["_", "__"]
+
+    def __init__(cls, name, bases, namespace, **kwargs):
+        super().__init__(name, bases, namespace, **kwargs)
+        for attr in Proxying.__dict__:
+            log.debug(attr)
+            setattr(cls, attr, getattr(Proxying, attr))
+
+    def _proxied_getattr(self, item: str) -> Any:
+        frame = inspect.currentframe().f_back
+        meta = find_origin(item, frame)
+        item = meta["type"]
+        return self._factory.process(item)
+
+@combine(Proxying)
+class DummyClass:
+    pass
+
+log.debug(DummyClass.__dict__)
+
+# class ProxyingClass(ProxyParent):
+#     def __init_subclass__(cls, **kwargs):
+#         for attr in ProxyingClass.__dict__:
+#             try: setattr(cls, attr, getattr(ProxyingClass, attr))
+#             except Exception: continue
+#         for k in cls.__dict__:
+#             cls._whitelist.append(k)
+#         for k in kwargs:
+#             setattr(cls, k, kwargs.get(k))
+
+# log.debug(f"dummy={DummyClass.__dict__}")
+# log.debug(f"proxying={ProxyingClass.__dict__}")
+# #log.debug(ProxyingClass().__dict__)
+# path = Path.cwd()
+
+# class SmartProxy(type):
+#     _target_class: Type          # What class are we hijacking?
+#     _smart_proxy_dunders: List[Callable]
+#     _target_dunders: List[Callable]
+#     _class_objects: List[object] # Track created objects
+#     _whitelist: List[str]        # Allowed attribute names
+#     _whitelist_prefixes: List[str] # Allowed prefixes (_private, etc)
+#     _factories: List[Callable]
+#     _is_async: bool

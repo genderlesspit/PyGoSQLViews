@@ -1,0 +1,23 @@
+
+
+
+<div class="detail-page">
+  <div class="detail-header">
+    <h1 class="detail-title">Users Details</h1>
+  </div>
+
+  <div class="detail-content">
+    {% for key, value in data.items() %}
+    <div class="detail-field">
+      <label class="field-label">{{ key | replace('_', ' ') | title }}</label>
+      <div class="field-value">
+        {% if value is not none %}
+        {{ value }}
+        {% else %}
+        <em class="null-value">Not provided</em>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+</div>

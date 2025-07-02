@@ -1,0 +1,23 @@
+
+
+
+
+
+<div class="card"
+     hx-get="/users/{{ id }}"
+     hx-push-url="true"
+     style="cursor: pointer;">
+
+  {% if image %}
+  <div class="card-image-container">
+    <img class="card-image" src="{{ image }}" alt="{{ title }}">
+  </div>
+  {% endif %}
+
+  <div class="card-content">
+    <h3 class="card-title">{{ title }}</h3>
+    {% if subtitle %}
+    <p class="card-subtitle">{{ subtitle }}</p>
+    {% endif %}
+  </div>
+</div>

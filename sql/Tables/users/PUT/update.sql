@@ -1,0 +1,1 @@
+UPDATE users SET {{updates}} WHERE id = ?;
