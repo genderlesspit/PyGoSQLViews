@@ -1,3 +1,4 @@
+import asyncio
 import inspect
 from pathlib import Path
 from tabnanny import verbose
@@ -8,11 +9,12 @@ from async_property import AwaitLoader
 from loguru import logger as log
 from propcache import cached_property
 
-from toomanyplugins import combine, stubgen
-from toomanyplugins.toomanyplugins import combine_classes
+from toomanyplugins import TypeConverter, auto_stub
+from toomanyplugins.toomanyobjects import combine
 from toomanyproxies.factory import Factory, Default
 from toomanyproxies.util import get_runtime_value, find_origin
 
+@auto_stub
 class Proxies:
     pass
 
@@ -40,8 +42,7 @@ class Proxying:
 @combine(Proxying)
 class Proxy:
     verbose: bool
-    _name: str
-    _factory: Factory
+    _factory: Factory | Any
     _proxyer: Type
     _proxied: Type
 
@@ -63,9 +64,9 @@ class Proxy:
             target_cls = self._proxied
 
         self._factory = DefaultFactory
-        combine_classes(Proxy, Proxies)
-        getattr(self, self._proxyer.__name__)
-        combine_classes(self._proxyer, self)
+
+        asyncio.run(TypeConverter.absorb_attr(Proxy, Proxies))
+        asyncio.run(TypeConverter.absorb_attr(self._proxyer, self))
 
     def __getattr__(self, item: Any):
         if self.verbose: log.debug(f"{self}: Attempting to retrieve {item}")

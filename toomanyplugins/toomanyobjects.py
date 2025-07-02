@@ -1,4 +1,5 @@
 import asyncio
+import inspect
 from typing import Type, Any
 from loguru import logger as log
 
@@ -117,6 +118,9 @@ class TypeConverter:
 
         # Return the original target (so you get back a class if you passed one,
         # or the same instance if you passed an object)
+
+        auto_stub(to_target)
+
         return to_target
 
     async def class_to_dict(
@@ -185,6 +189,32 @@ class TypeConverter:
 
             for name, val in typ.__dict__.items():
                 log.debug(f"[{self}]: {name!r} → {val!r}")
+
+def combine(cls2: object, override: bool = False):
+    """
+    Decorator to add proxy behavior to existing class.
+    Works whether TypeConverter.absorb_attr is async or sync.
+    """
+    def decorator(cls1: type) -> type:
+        # call the converter
+        result = TypeConverter.absorb_attr(cls1, cls2, override=override)
+        # if it gave us a coroutine, run it to completion now
+        if inspect.isawaitable(result):
+            try:
+                loop = asyncio.get_event_loop()
+            except RuntimeError:
+                # no running loop; make one
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+            if getattr(cls1, "verbose", False):
+                log.debug(f"[combine]: awaiting absorb_attr for {cls1.__name__}")
+            cls1 = loop.run_until_complete(result)
+
+        auto_stub(cls1)
+        return cls1
+
+    return decorator
+
 
 class A:
     verbose = True

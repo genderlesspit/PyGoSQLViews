@@ -68,12 +68,14 @@ class TooManyStubs:
         lines: list[str] = [f"class {cls.__name__}:"]
         members: list[str] = []
         hints = get_type_hints(cls, include_extras=False)
+        log.warning(f"[AutoStub]: Generating stubs for {cls}")
 
         for name, attr in cls.__dict__.items():
             # ----- instance method -----
             if inspect.isfunction(attr):
                 sig = inspect.signature(attr)
-                fn_hints = get_type_hints(attr, include_extras=False)
+                try: fn_hints = get_type_hints(attr, include_extras=False)
+                except: continue
                 params = []
                 for p in sig.parameters.values():
                     ann = fn_hints.get(p.name, Any)
@@ -148,6 +150,12 @@ class TooManyStubs:
                 else:
                     ann_name = type(attr).__name__
                 members.append(f"    {name}: {ann_name}")
+
+        annotations = inspect.get_annotations(cls)
+        for name in annotations:
+            anno = annotations[str(name)]
+            anno = anno.__name__
+            members.append(f"    {name}: {anno}")
 
         # if cls.__dict__ was truly empty, still emit a pass
         if not members:
