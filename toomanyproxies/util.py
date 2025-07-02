@@ -1,12 +1,20 @@
 import ast
 import inspect
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from types import FrameType, SimpleNamespace
 from typing import Any, Dict, Optional
 from loguru import logger as log
 
-def find_origin(item: str, frame: FrameType) -> SimpleNamespace | None:
+@dataclass
+class Origin:
+    val: Any
+    type: Any
+    type_module: Any
+    type_name: Any
+
+def find_origin(item: str, frame: FrameType) -> Origin | None:
     meta = {}
     try:
         val = get_runtime_value(item, frame)
@@ -16,10 +24,8 @@ def find_origin(item: str, frame: FrameType) -> SimpleNamespace | None:
         meta["type_module"] = tp.__module__
         meta["type_name"] = tp.__name__
         log.info(f"[TooManyProxies.Util]: {item!r} resolved → {val!r} (type={tp.__module__}.{tp.__name__})")
-        return SimpleNamespace(
-            dict=meta,
-            **meta
-        )
+        return Origin(**meta)
+
     except Exception as e:
         raise RuntimeWarning(e)
     finally:
@@ -124,3 +130,5 @@ def assign_node_to_literal(node: ast.Assign, filename: str) -> Any:
         # fallback: grab the raw source for the RHS expression
         source = Path(filename).read_text(encoding="utf-8")
         return ast.get_source_segment(source, node.value)
+
+

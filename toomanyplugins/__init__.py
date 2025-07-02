@@ -1,0 +1,1 @@
+from .excruciating_logger import excruciating_logger, annoying_class

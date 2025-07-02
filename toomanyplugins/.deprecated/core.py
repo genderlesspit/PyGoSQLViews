@@ -7,36 +7,8 @@ from typing import Callable, List, cast
 from loguru import logger as log
 from functools import cached_property
 
-def plugin(target_class, decorators=None, override: bool = False, verbose: bool = True):
-    name = "[TooManyPlugins]"
-    if verbose: log.debug(f"{name}: Attempting to add plugin...\n - target_class={target_class}\n - decorators={decorators}\n - override={override}")
-    
-    def decorator(func):
-        # Apply decorators to the function
-        enhanced_func = func
-        if decorators:
-            if callable(decorators):  # Single decorator
-                enhanced_func = decorators(func)
-            else:  # List of decorators
-                for dec in decorators:
-                    enhanced_func = dec(enhanced_func)
+#from toomanyplugins.plugin import plugin
 
-        # Check if function already exists
-        if hasattr(target_class, func.__name__) and not override:
-            log.warning(f"[{name}] {func.__name__} already exists, skipping")
-            return getattr(target_class, func.__name__)
-
-        # Add to class
-        setattr(target_class, func.__name__, enhanced_func)
-
-        # IMPORTANT: Call __set_name__ for descriptors that need it
-        if hasattr(enhanced_func, '__set_name__'):
-            enhanced_func.__set_name__(target_class, func.__name__)
-
-        if verbose: log.debug(f"[{name}] Successfully added {func.__name__} to {target_class}!")
-        return enhanced_func
-
-    return decorator
 
 class Test:
     instance = None
@@ -83,9 +55,9 @@ def update_stub_file(class_name: str, new_stub: str, output_file: Path):
     """Smart stub file updating."""
 
     if not output_file.exists():
-        # Create new file
+        log.warning(f"[TooManyPlugins]: No file found at {output_file}, attempting to generate...")
         with open(output_file, 'w') as f:
-            f.write("from typing import Any\n\n" + new_stub + "\n")
+            f.write("from typing import Any, NoneType\n\n" + new_stub + "\n")
         return
 
     # Read existing content
@@ -117,8 +89,7 @@ def generate_class_stub(cls) -> str:
     all_attrs = {}
     for base in cls.__mro__:
         for key, value in base.__dict__.items():
-            if not key.startswith('_') and key not in all_attrs:
-                all_attrs[key] = value
+            all_attrs[key] = value
 
     # Add to stub
     for key, value in all_attrs.items():
@@ -133,12 +104,17 @@ def generate_class_stub(cls) -> str:
     return '\n'.join(lines)
 
 def stubgen(_cls=None, *, path: Path = None):
+    from toomanyproxies import find_caller
+    caller = find_caller(inspect.currentframe().f_back)
     def decorator(cls):
         # Generate stub
         stub_content = generate_class_stub(cls)
-        output_file = Path.cwd() / Path(f"{Path(__file__).stem}.pyi") if path is None else path
+        caller_path = Path(caller["file"])
+        root = caller_path.parent
+        name = caller_path.stem
+        full_path = root / f"{name}.pyi"
 
-        #log.warning(f"[TooManyPlugins]: Attempting to generate stubfile at {output_file}")
+        output_file = full_path if path is None else path
 
         # Update file (replace if exists)
         update_stub_file(cls.__name__, stub_content, output_file)
@@ -152,40 +128,59 @@ def stubgen(_cls=None, *, path: Path = None):
 
 def combine(cls2: object, new_type: bool = False):
     """Decorator to add proxy behavior to existing class."""
-    def decorator(cls1: object):
-        combined_dict = {}
-        for cls in [cls1, cls2]:
-            log.debug(f"[TooManyPlugins]: Inspecting {cls}:"
-                      f" __dict__={cls.__dict__.items()}")
-            for key, value in cls.__dict__.items():
-                if not key.startswith('__') or key in ['__annotations__', '__doc__']:
-                    combined_dict[key] = value
-
-        combined_anno = {}
-        for cls in [cls1, cls2]:
-            if hasattr(cls, '__annotations__'):
-                combined_anno.update(cls.__annotations__)
-
-        if combined_anno: combined_dict['__annotations__'] = combined_anno
-
-        # Create new class with combined behavior
-        class_name = cls1.__name__ + cls2.__name__ if new_type else cls1.__name__
-
-        tp = type(
-            class_name,
-            (cls1, cls2),  # type: ignore
-            combined_dict
-        )
-
-        # Add module info for better IDE recognition
-        tp.__module__ = cls1.__module__
-        tp.__qualname__ = class_name
-
-        log.debug(f"[TooManyPlugins]: Reading newtype {tp}: {tp.__dict__}")
-        tp = stubgen(tp)
-
-        return tp  # Simple and clear
+    def decorator(cls1: object, cls2 = cls2, new_type=new_type):
+        return combine_classes(cls1, cls2, new_type)
     return decorator
+
+def combine_classes(cls1: object, cls2: object, new_type = False):
+    combined_dict = {}
+    for cls in [cls1, cls2]:
+        log.debug(f"[TooManyPlugins]: Inspecting {cls}:"
+                  f" __dict__={cls.__dict__.items()}")
+        for key, value in cls.__dict__.items():
+            if not key.startswith('__') or key in ['__annotations__', '__doc__']:
+                combined_dict[key] = value
+
+    combined_anno = {}
+    for cls in [cls1, cls2]:
+        if hasattr(cls, '__annotations__'):
+            combined_anno.update(cls.__annotations__)
+
+    if combined_anno: combined_dict['__annotations__'] = combined_anno
+
+    # Create new class with combined behavior
+    class_name = cls1.__name__ + cls2.__name__ if new_type else cls1.__name__
+
+    tp = type(
+        class_name,
+        (cls1, cls2),  # type: ignore
+        combined_dict
+    )
+
+    # Add module info for better IDE recognition
+    tp.__module__ = cls1.__module__
+    tp.__qualname__ = class_name
+
+    log.debug(f"[TooManyPlugins]: Reading newtype {tp}: {tp.__dict__}")
+    tp = stubgen(tp)
+
+    return tp  # Simple and clear
+
+def combine_into_instance(target_obj, source_obj):
+    """Combine attributes into existing instance."""
+
+    # Copy attributes from source object
+    for key, value in source_obj.__dict__.items():
+        if not key.startswith('_'):
+            setattr(target_obj, key, value)
+
+    # Copy class attributes from source class
+    source_class = source_obj.__class__
+    for key, value in source_class.__dict__.items():
+        if not key.startswith('_') and not hasattr(target_obj, key):
+            setattr(target_obj, key, value)
+
+    return target_obj
 
 import re
 import ast

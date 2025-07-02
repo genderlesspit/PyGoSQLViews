@@ -42,15 +42,16 @@ class SmartProxyTypeFactory(ABCMeta):
 
 def _default_dict(self, item: Any) -> Any:
     if self.verbose: log.debug(f"{self}: Injecting dict {item} into {self.target_cls.__name__}")
-    return self.target_cls(item)
+    object = self.target_cls
+    return self.target_cls(item, **self.kwargs)
 
 def _default_path(self, item: Any) -> Any:
     if self.verbose: log.debug(f"{self}: Injecting Path {item} into {self.target_cls.__name__}")
-    return self.target_cls(item)
+    return self.target_cls(item, **self.kwargs)
 
 def _default_list(self, item: Any) -> Any:
     if self.verbose: log.debug(f"{self}: Injecting list {item} into {self.target_cls.__name__}")
-    return self.target_cls(item)
+    return self.target_cls(item, **self.kwargs)
 
 DEFAULT_CONVERSIONS: dict[str, Callable] = {
     "dict": _default_dict,
@@ -65,7 +66,7 @@ class Factory(ABC, metaclass=SmartProxyTypeFactory):
     """
     target_cls: Type
     custom_factory: Type
-    kwargs: dict
+    kwargs: dict = {}
     verbose: bool = False
 
     def __init_subclass__(cls, **kwargs):
@@ -75,16 +76,16 @@ class Factory(ABC, metaclass=SmartProxyTypeFactory):
             if name not in cls.__dict__:
                 setattr(cls, name, default_fn)
                 log.debug(f"[{cls.__name__}]: injected default '{name}'")
+        cls.process = Factory.process
 
     def __repr__(self):
         return self.__class__.__name__
 
     @property
     def methods(self) -> List[Callable]:
-        # … your non-recursive methods implementation from before …
         fns: List[Callable] = []
         for n, member in type(self).__dict__.items():
-            if inspect.isfunction(member) and not n.startswith("_"):
+            if inspect.isfunction(member):
                 fns.append(member.__get__(self, type(self)))
         if self.verbose:
             log.debug(f"[{self}]: Methods available = {[fn.__name__ for fn in fns]}")
@@ -96,51 +97,32 @@ class Factory(ABC, metaclass=SmartProxyTypeFactory):
         Generic converter entry point.
         Returns None if no registered converter exists.
         """
-        if self.verbose:
-            log.warning(f"{self}: no converter registered for type {type(item)}")
+        log.debug(f"{self}: Hello, {item} of {type(item)}!")
+        typ = type(item)
+        if hasattr(self, typ.__name__):
+            method = getattr(self, typ.__name__)
+            log.debug(f"{self}: Dispatching to converter...")
+            obj = method(self=self, item=item)
+            log.debug(f"{self}: Initialized new obj: {obj}")
+            return obj
+        else:
+            if self.verbose: log.warning(f"{self}: no converter registered for type {type(item)}")
         return None
-
-    @process.register
-    def _(self, item: dict) -> Any:
-        """
-        Dispatch dict to .dict()
-        """
-        if self.verbose:
-            log.debug(f"{self}: dispatching dict item: {item!r}")
-        return self.dict(item)
-
-    @process.register
-    def _(self, item: Path) -> Any:
-        """
-        Dispatch Path to .path()
-        """
-        if self.verbose:
-            log.debug(f"{self}: dispatching path item: {item!s}")
-        return self.path(item)
-
-    @process.register
-    def _(self, item: list) -> Any:
-        """
-        Dispatch list to .list()
-        """
-        if self.verbose:
-            log.debug(f"{self}: dispatching list item of length: {len(item)}")
-        return self.list(item)
 
     @abstractmethod
     def dict(self, item: Any) -> Any:
         """Convert to dict or return None."""
-        ...
+        return self.target_cls(item, **self.kwargs)
 
     @abstractmethod
     def path(self, item: Any) -> Any:
         """Convert to Path or return None."""
-        ...
+        return self.target_cls(item, **self.kwargs)
 
     @abstractmethod
     def list(self, item: Any) -> Any:
         """Convert to list or return None."""
-        ...
+        return self.target_cls(item, **self.kwargs)
 
 class Default(Factory):
     verbose=True
