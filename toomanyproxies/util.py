@@ -6,6 +6,8 @@ from pathlib import Path
 from types import FrameType, SimpleNamespace
 from typing import Any, Dict, Optional
 from loguru import logger as log
+from toomanyplugins.excruciating_logger import excruciating_logger
+
 
 @dataclass
 class Origin:
@@ -14,6 +16,7 @@ class Origin:
     type_module: Any
     type_name: Any
 
+@excruciating_logger
 def find_origin(item: str, frame: FrameType) -> Origin | None:
     meta = {}
     try:
@@ -31,6 +34,7 @@ def find_origin(item: str, frame: FrameType) -> Origin | None:
     finally:
         del frame
 
+@excruciating_logger
 def get_runtime_value(name: str, frame: FrameType) -> Any:
     if name in frame.f_locals:
         return frame.f_locals[name]

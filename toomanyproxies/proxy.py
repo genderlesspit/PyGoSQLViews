@@ -9,8 +9,8 @@ from async_property import AwaitLoader
 from loguru import logger as log
 from propcache import cached_property
 
-from toomanyplugins import TypeConverter, auto_stub, plugin
-from toomanyplugins.toomanyobjects import combine
+from toomanyplugins import TypeConverter, auto_stub, plugin, excruciating_logger
+from toomanyplugins import combine
 from toomanyproxies.factory import Factory, Default
 from toomanyproxies.util import get_runtime_value, find_origin
 
@@ -26,27 +26,17 @@ class Proxying:
     _whitelist: List[str] = ["verbose", "log"]
     _whitelisted_prefixes: tuple[str | str] = ["_", "__"]
 
-    # def __init__(cls, name, bases, namespace, **kwargs):
-    #     super().__init__(name, bases, namespace, **kwargs)
-    #     for attr in Proxying.__dict__:
-    #         log.debug(attr)
-    #         setattr(cls, attr, getattr(Proxying, attr))
-
-    def _proxied_getattr(self, item: str) -> Any:
-        frame = inspect.currentframe().f_back
-        meta = find_origin(item, frame)
-        item = meta.type
-        log.debug(item)
-        return self._factory.process(item)
-
 @combine(Proxying)
 class Proxy:
-    verbose: bool
+    verbose: bool = True
     _factory: Factory | Any
     _proxyer: Type
     _proxied: Type
 
-    def __init__(self, proxyer, proxied, verbose: bool = True) -> 'Proxy':
+    def __name__(self):
+        return "Proxy"
+
+    def __init__(self, proxyer, proxied, verbose: bool = True):
         if proxyer.__name__ not in Proxies.__dict__:
             log.warning(f"Attempted to call {proxyer.__name__} from {Proxies}, but it doesn't exist yet!")
             setattr(Proxies, proxyer.__name__, self)
@@ -68,16 +58,16 @@ class Proxy:
         #time to infect the host...
         asyncio.run(TypeConverter.absorb_attr(Proxy, Proxies))
         asyncio.run(TypeConverter.absorb_attr(self._proxyer, self))
-        self._proxyer.__getattr__ = self.__getattr__
-
+        combine(self._proxyer, self)
+        self._proxyer.__getattribute__ = self.__proxied_getattr__
         log.success(f"{self}: {proxyer} now has the ability to proxy {proxied} based on {proxyer._factory}!")
 
-    def __getattr__(self, item: Any):
+    def __proxied_getattr__(self, item: Any):
         if self.verbose: log.debug(f"{self}: Attempting to retrieve {item}")
 
-        if item == self._proxyer.__name__:
-            setattr(Proxy, self._proxyer.__name__, self._proxyer)
-            return self._proxyer
+        # if item == self._proxyer.__name__:
+        #     setattr(Proxy, self._proxyer.__name__, self._proxyer)
+        #     return self._proxyer
 
         if not isinstance(item, str):
             log.warning(f"{self}: Attempting to get an attr... that's not a str?")
@@ -93,7 +83,8 @@ class Proxy:
         else:
             item: str
             if item not in self._whitelist and not item.startswith("_"):
-                if self.verbose: log.warning(f"{self}: {item} passed the whitelist... Attempting to initialize as {self._proxied}")
+                if self.verbose:
+                    log.warning(f"{self}: {item} is not in the whitelist... Attempting to initialize as {self._proxied}\ncurrent_whitelist: {self._whitelist}")
                 frame = inspect.currentframe().f_back
                 meta = find_origin(item, frame)
                 log.debug(meta.val)
@@ -136,7 +127,10 @@ class Dummy2:
     def __init__(self, item):
         self.item = item
 
-test = Proxy(Dummy, Dummy2)
+Proxy(Dummy, Dummy2)
+bar = "foo"
+Dummy.bar
+# log.debug(Dummy.bar)
 
 #ten = ["ten"]
 #log.debug(ProxyManager.ten)
